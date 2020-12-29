@@ -34,16 +34,25 @@ class UsersDao extends DatabaseAccessor<AppDatabase> with _$UsersDaoMixin {
   UsersDao(this.db) : super(db);
 
   Stream<List<User>> watchAllTasks() {
-       return (select(users)
+    return (select(users)
          ..orderBy([
            (t) => OrderingTerm.asc(t.name),
            (t) => OrderingTerm.desc(t.modifiedDate)
          ])).watch();
   }
 
+  Future deleteMultipleTasks(List<int> ids) => (delete(users)..where((tbl) => tbl.id.isIn(ids))).go();
+
   Future<List<User>> getAllTasks() => select(users).get();
   // Stream<List<User>> watchAllTasks() => select(users).watch();
   Future insertTask(Insertable<User> task) => into(users).insert(task);
   Future updateTask(Insertable<User> task) => update(users).replace(task);
   Future deleteTask(Insertable<User> task) => delete(users).delete(task);
+
+  int getInt(List<int> ids) {
+    for(var i in ids){
+        return i;
+      }
+  }
+
 }

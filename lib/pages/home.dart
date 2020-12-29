@@ -2,10 +2,12 @@ import 'package:customer_flutter/db/database.dart';
 import 'package:customer_flutter/main.dart';
 import 'package:customer_flutter/models/UserProfile.dart';
 import 'package:customer_flutter/pages/add_edit_profile.dart';
+import 'package:customer_flutter/pages/listitem.dart';
 import 'package:customer_flutter/utils/HexColor.dart';
 import 'package:customer_flutter/utils/MPreference.dart';
 import 'package:customer_flutter/utils/MyWidgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +19,8 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   List<User> listOfUser = [];
+  List<User> listOfSelected = [];
+  UsersDao userDao;
   MPreference preference;
   String title = "Velavan cable vision";
   UserProfile _userProfile;
@@ -42,39 +46,47 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     preference = Provider.of<MPreference>(context);
-    // _userProfile=preference.getUserProfile();
-    return Scaffold(
-      appBar: AppBar(
-        title: FutureBuilder<UserProfile>(
-            future: preference.getUserProfile(),
-            builder: (BuildContext context, AsyncSnapshot<UserProfile> snapshot) {
-              String title=snapshot.data!=null ? snapshot.data.companyName : "Company name";
-              return Text(title);
-            }),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.supervised_user_circle_outlined),
-            onPressed: () {
-              Navigator.pushNamed(context, "/profile");
-            },
-          )
-        ],
+    userDao = Provider.of<Repository>(context).getUserDao();
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        appBar: AppBar(
+          title: FutureBuilder<UserProfile>(
+              future: preference.getUserProfile(),
+              builder: (BuildContext context, AsyncSnapshot<UserProfile> snapshot) {
+                String title=snapshot.data!=null ? snapshot.data.companyName : "Company name";
+                title=listOfSelected.isEmpty ? title : ("${listOfSelected.length} item selected");
+                return Text(title);
+              }),
+          actions: [
+            listOfSelected.isEmpty ? IconButton(
+              icon: Icon(Icons.supervised_user_circle_outlined),
+              onPressed: () {
+                Navigator.pushNamed(context, "/profile");
+              },
+            ) : IconButton(
+              icon: Icon(Icons.delete_forever),
+              onPressed: () {
+                _deleteItems();
+              },
+            )
+          ],
+        ),
+
+        floatingActionButton: listOfSelected.isEmpty ? FloatingActionButton(
+          onPressed: () {
+            Navigator.pushNamed(context, '/add_edit_customer');
+          },
+          tooltip: 'Add User',
+          child: Icon(Icons.add),
+          elevation: 2.0,
+        ) : Container(),
+        body: _userListView(),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          Navigator.pushNamed(context, '/add_edit_customer');
-        },
-        tooltip: 'Add User',
-        child: Icon(Icons.add),
-        elevation: 2.0,
-      ),
-      body: _userListView(),
     );
   }
 
   Widget _userListView() {
-    var userDao = Provider.of<Repository>(context).getUserDao();
-    var size = MediaQuery.of(context).size;
     return StreamBuilder<Object>(
         stream: userDao.watchAllTasks(),
         builder: (context, snapshot) {
@@ -89,20 +101,40 @@ class _HomeState extends State<Home> {
                         color: HexColor('#EEEEEE'),
                       ),
                   itemBuilder: (BuildContext context, int index) {
-                    return _buildListItem(index, size);
+                    return ListItem(
+                      key: Key(listOfUser[index].id.toString()),
+                      item: listOfUser[index],
+                        listOfSelected: listOfSelected,
+                        isSelected: (bool value) {
+                          setState(() {
+                            if (value)
+                              listOfSelected.add(listOfUser[index]);
+                             else
+                              listOfSelected.remove(listOfUser[index]);
+                          });
+                        });
                   })
               : Center(child: Text('No Users'));
         });
   }
 
+  Route _createRoute(int index) {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => AddEditProfile(user: listOfUser[index]),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: animation,
+          child: child,
+        );
+      },
+    );
+  }
+
+
   InkWell _buildListItem(int index, Size size) {
     return InkWell(
       onTap: () {
-        Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (context) => AddEditProfile(user: listOfUser[index])));
-        // Navigator.pushNamed(context, '/add_edit_customer',arguments: listOfUser[index]);
+        Navigator.push(context, _createRoute(index));
       },
       child: Row(
         children: [
@@ -147,4 +179,29 @@ class _HomeState extends State<Home> {
       ),
     );
   }
+
+  void _deleteItems() async{
+    List<int> items=[];
+
+    for(User u in listOfSelected){
+      items.add(u.id);
+    }
+    await userDao.deleteMultipleTasks(items);
+    setState(() {
+      listOfSelected.clear();
+    });
+  }
+
+  Future<bool> _onWillPop() {
+    if (listOfSelected.isNotEmpty) {
+      setState(() {
+        listOfSelected.clear();
+      });
+    }else{
+      SystemChannels.platform
+          .invokeMethod('SystemNavigator.pop');
+    }
+    return false as Future;
+  }
+
 }
