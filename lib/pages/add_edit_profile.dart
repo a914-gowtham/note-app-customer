@@ -55,6 +55,7 @@ class _AddEditProfileState extends State<AddEditProfile> {
       _controllerMob.text = user.mobile;
       _controllerNotes.text = user.notes;
       dropdownValue = user.area;
+      spinnerItems.add(dropdownValue);
     }
   }
 
@@ -309,11 +310,17 @@ class _AddEditProfileState extends State<AddEditProfile> {
             list.clear();
             list.addAll(set);
             if (list.isNotEmpty) {
-              if (user != null && !list.contains(dropdownValue)) {
-                list.add(dropdownValue);
-              } else
-                dropdownValue = list.first;
+              if (user != null) {
+                if (!list.contains(dropdownValue)) {
+                  list.add(dropdownValue);
+                }
                 spinnerItems = list;
+                print("case 1");
+              } else {
+                dropdownValue=list.first;
+                spinnerItems = list;
+                print("case 2");
+              }
               print("dropdownValue $dropdownValue");
               print("spinnerItems $spinnerItems");
             }
